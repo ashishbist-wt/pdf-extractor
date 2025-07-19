@@ -136,7 +136,7 @@ If any field is not found, use "Not Found" as the value.
         return f"Error with OpenAI O3 analysis: {str(e)}"
 
 def create_excel(data):
-    """Create Excel file from extracted data"""
+    """Create Excel file from extracted data with auto-adjusted column widths"""
     try:
         # Create DataFrame
         df = pd.DataFrame([data])
@@ -145,6 +145,26 @@ def create_excel(data):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Insurance Data', index=False)
+            
+            # Get the workbook and worksheet
+            workbook = writer.book
+            worksheet = writer.sheets['Insurance Data']
+            
+            # Auto-adjust column widths based on content
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                # Set column width with some padding (minimum 10, maximum 50)
+                adjusted_width = min(max(max_length + 2, 10), 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
         
         output.seek(0)
         return output
