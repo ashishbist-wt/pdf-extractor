@@ -15,7 +15,7 @@ fi
 
 # Check if .env file exists
 if [ ! -f "backend/.env" ]; then
-    echo "⚠️  Warning: Please create backend/.env file with your OPENAI_API_KEY"
+    echo "⚠️  Warning: Please create backend/.env file with your MISTRAL_API_KEY"
     echo "   Copy backend/.env.example to backend/.env and add your API key"
     echo ""
 fi
@@ -42,4 +42,4 @@ echo "2. Frontend: cd frontend && npm run dev"
 echo ""
 echo "Then open http://localhost:3000 in your browser"
 echo ""
-echo "⚠️  Don't forget to set your OPENAI_API_KEY in backend/.env"
+echo "⚠️  Don't forget to set your MISTRAL_API_KEY in backend/.env"

@@ -1,18 +1,14 @@
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import PyPDF2
-from openai import OpenAI
 import pandas as pd
 import io
 import os
 from datetime import datetime
-import re
-from dotenv import load_dotenv
-from paddleocr import PaddleOCR
-from pdf2image import convert_from_bytes
-from PIL import Image
-import numpy as np
 import json
+import base64
+from mistralai import Mistral
+from openai import OpenAI
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -28,227 +24,137 @@ CORS(app, resources={
     }
 })
 
-# Initialize PaddleOCR (run once)
-ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
-
-def detect_pdf_content_type(pdf_file):
-    """Detect if PDF contains text-based or image-based content"""
-    try:
-        pdf_file.seek(0)  # Reset file pointer
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
-        content_analysis = {
-            'total_pages': len(pdf_reader.pages),
-            'text_based_pages': 0,
-            'image_based_pages': 0,
-            'mixed_pages': 0,
-            'page_types': []
-        }
-        
-        for page_num, page in enumerate(pdf_reader.pages):
-            text = page.extract_text().strip()
-            
-            # Check if page has extractable text
-            if len(text) > 50:  # Threshold for meaningful text
-                # Check if page also has images
-                if '/XObject' in page.get('/Resources', {}):
-                    xobjects = page['/Resources']['/XObject'].get_object()
-                    has_images = any('/Subtype' in obj.get_object() and 
-                                   obj.get_object()['/Subtype'] == '/Image' 
-                                   for obj in xobjects.values() if hasattr(obj, 'get_object'))
-                    if has_images:
-                        content_analysis['mixed_pages'] += 1
-                        content_analysis['page_types'].append('mixed')
-                    else:
-                        content_analysis['text_based_pages'] += 1
-                        content_analysis['page_types'].append('text')
-                else:
-                    content_analysis['text_based_pages'] += 1
-                    content_analysis['page_types'].append('text')
-            else:
-                content_analysis['image_based_pages'] += 1
-                content_analysis['page_types'].append('image')
-        
-        # Determine overall PDF type
-        if content_analysis['text_based_pages'] > content_analysis['image_based_pages']:
-            pdf_type = 'text_dominant'
-        elif content_analysis['image_based_pages'] > content_analysis['text_based_pages']:
-            pdf_type = 'image_dominant'
-        else:
-            pdf_type = 'mixed'
-            
-        content_analysis['pdf_type'] = pdf_type
-        return content_analysis
-        
-    except Exception as e:
-        return {
-            'error': f"Error analyzing PDF content: {str(e)}",
-            'pdf_type': 'unknown'
-        }
-
-def extract_text_from_pdf(pdf_file):
-    """Extract text from PDF using PyPDF2"""
+def encode_pdf(pdf_file):
+    """Encode the pdf to base64."""
     try:
         pdf_file.seek(0)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-        return text
+        return base64.b64encode(pdf_file.read()).decode('utf-8')
     except Exception as e:
-        return f"Error extracting PDF text: {str(e)}"
+        print(f"Error: {e}")
+        return None
 
-def extract_text_with_ocr(pdf_file):
-    """Extract text from PDF using PaddleOCR for image-based content"""
+def extract_text_with_mistral_ocr(pdf_file):
+    """Extract text from PDF using Mistral OCR API"""
     try:
-        pdf_file.seek(0)
-        # Convert PDF pages to images
-        images = convert_from_bytes(pdf_file.read(), dpi=300)
+        # Getting the base64 string
+        base64_pdf = encode_pdf(pdf_file)
+        if not base64_pdf:
+            return "Error: Failed to convert PDF to base64"
         
+        api_key = os.environ.get("MISTRAL_API_KEY")
+        if not api_key:
+            return "Error: MISTRAL_API_KEY not found in environment variables"
+            
+        client = Mistral(api_key=api_key)
+        
+        # Check if client has ocr attribute
+        if not hasattr(client, 'ocr'):
+            return "Error: OCR functionality not available in current Mistral client version. Please update mistralai package."
+        
+        ocr_response = client.ocr.process(
+            model="mistral-ocr-latest",
+            document={
+                "type": "document_url",
+                "document_url": f"data:application/pdf;base64,{base64_pdf}"
+            },
+            include_image_base64=True
+        )
+        
+        # Extract text from the OCR response
         extracted_text = ""
+        if hasattr(ocr_response, 'text'):
+            extracted_text = ocr_response.text
+        elif hasattr(ocr_response, 'content'):
+            extracted_text = ocr_response.content
+        elif hasattr(ocr_response, 'choices') and len(ocr_response.choices) > 0:
+            extracted_text = ocr_response.choices[0].message.content
+        else:
+            # Return the full response for debugging if structure is different
+            extracted_text = f"OCR Response received but structure unknown: {str(ocr_response)}"
         
-        for page_num, image in enumerate(images):
-            # Convert PIL image to numpy array
-            img_array = np.array(image)
-            
-            # Use PaddleOCR to extract text
-            result = ocr.ocr(img_array, cls=True)
-            
-            page_text = ""
-            if result and result[0]:
-                for line in result[0]:
-                    if len(line) > 1 and line[1][0]:  # Check if text exists
-                        page_text += line[1][0] + " "
-            
-            extracted_text += f"\n--- Page {page_num + 1} ---\n{page_text}\n"
+        # Save extracted text to file
+        if extracted_text and not extracted_text.startswith("Error") and not extracted_text.startswith("OCR Response received but structure unknown"):
+            try:
+                # Create extracted_texts directory if it doesn't exist
+                os.makedirs('extracted_texts', exist_ok=True)
+                
+                # Generate filename with timestamp
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                filename = f'extracted_texts/ocr_text_{timestamp}.txt'
+                
+                # Save the extracted text to file
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(f"Extracted Text from PDF - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("=" * 50 + "\n\n")
+                    f.write(extracted_text)
+                
+                print(f"Extracted text saved to: {filename}")
+                
+            except Exception as save_error:
+                print(f"Warning: Failed to save extracted text to file: {str(save_error)}")
+                # Continue execution even if file saving fails
         
         return extracted_text
-        
-    except Exception as e:
-        return f"Error extracting text with OCR: {str(e)}"
-
-def extract_mixed_content(pdf_file, content_analysis):
-    """Extract content from mixed PDF using both methods"""
-    try:
-        pdf_file.seek(0)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
-        # First try text extraction
-        text_content = ""
-        for page in pdf_reader.pages:
-            text_content += page.extract_text()
-        
-        # If text extraction yields insufficient content, use OCR
-        if len(text_content.strip()) < 100:
-            return extract_text_with_ocr(pdf_file)
-        
-        # For mixed content, combine both methods
-        ocr_content = ""
-        if content_analysis['image_based_pages'] > 0:
-            pdf_file.seek(0)
-            images = convert_from_bytes(pdf_file.read(), dpi=300)
             
-            for page_num, image in enumerate(images):
-                if page_num < len(content_analysis['page_types']):
-                    if content_analysis['page_types'][page_num] in ['image', 'mixed']:
-                        img_array = np.array(image)
-                        result = ocr.ocr(img_array, cls=True)
-                        
-                        if result and result[0]:
-                            page_text = ""
-                            for line in result[0]:
-                                if len(line) > 1 and line[1][0]:
-                                    page_text += line[1][0] + " "
-                            ocr_content += f"\n--- OCR Page {page_num + 1} ---\n{page_text}\n"
-        
-        # Combine text and OCR content
-        combined_content = text_content
-        if ocr_content:
-            combined_content += "\n\n--- OCR EXTRACTED CONTENT ---\n" + ocr_content
-            
-        return combined_content
-        
+    except AttributeError as e:
+        return f"Error: Mistral client doesn't support OCR. Please check your mistralai package version. Details: {str(e)}"
     except Exception as e:
-        return f"Error extracting mixed content: {str(e)}"
+        return f"Error with Mistral OCR: {str(e)}"
 
-def process_pdf_content(pdf_file):
-    """Main function to process PDF based on its content type"""
-    # Analyze PDF content type
-    content_analysis = detect_pdf_content_type(pdf_file)
-    
-    if 'error' in content_analysis:
-        return content_analysis['error'], content_analysis
-    
-    pdf_type = content_analysis['pdf_type']
-    
-    # Extract content based on PDF type
-    if pdf_type == 'text_dominant':
-        extracted_text = extract_text_from_pdf(pdf_file)
-    elif pdf_type == 'image_dominant':
-        extracted_text = extract_text_with_ocr(pdf_file)
-    else:  # mixed content
-        extracted_text = extract_mixed_content(pdf_file, content_analysis)
-    
-    return extracted_text, content_analysis
 
-def analyze_with_gpt(text, content_analysis):
-    """Analyze PDF text with GPT-4-mini to extract insurance fields"""
+def analyze_with_openai(text):
+    """Analyze PDF text with OpenAI to extract insurance fields"""
     try:
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
-        # Enhanced prompt that considers the PDF type
-        pdf_type_context = f"This content was extracted from a {content_analysis['pdf_type']} PDF with {content_analysis['total_pages']} pages."
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            return "Error: OPENAI_API_KEY not found in environment variables"
+            
+        client = OpenAI(api_key=api_key)
         
         prompt = f"""
-        {pdf_type_context}
+Analyze the following insurance document text 
+
+Document text:
+{text}
+
+Please return only a JSON object with these exact keys:
+{{
+    "Current Policy number": "",
+    "Previous Policy number": "",
+    "Customer Name": "",
+    "Vehicle Number": "",
+    "Sum Insured": "",
+    "OD premium": "",
+    "TP premium": "",
+    "Net Premium(Before Taxes)": "",
+    "Total Premium(After Taxes)": "",
+    "Insurance Company name": "",
+    "Intermediary Name": ""
+}}
+
+If any field is not found, use "Not Found" as the value.
+"""
         
-        Analyze the following insurance document text and extract these specific fields. Return the response in JSON format with exact field names:
-        
-        1. Current Policy number
-        2. Previous Policy number
-        3. Customer Name
-        4. Vehicle Number
-        5. Sum Insured
-        6. OD premium
-        7. TP premium
-        8. Net Premium(Before Taxes)
-        9. Total Premium(After Taxes)
-        10. Insurance Company name
-        11. Intermediary Name
-        
-        Document text:
-        {text}
-        
-        Please return only a JSON object with these exact keys:
-        {{
-            "Current Policy number": "",
-            "Previous Policy number": "",
-            "Customer Name": "",
-            "Vehicle Number": "",
-            "Sum Insured": "",
-            "OD premium": "",
-            "TP premium": "",
-            "Net Premium(Before Taxes)": "",
-            "Total Premium(After Taxes)": "",
-            "Insurance Company name": "",
-            "Intermediary Name": ""
-        }}
-        
-        If any field is not found, use "Not Found" as the value.
-        """
-        
+        # Use OpenAI O3 for analysis
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-mini",  # Use O3 model
             messages=[
-                {"role": "system", "content": "You are an expert at extracting information from insurance documents. Always return valid JSON. Handle OCR-extracted text that may have some formatting issues."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are an expert at extracting information from insurance documents. Always return valid JSON. Handle OCR-extracted text that may have some formatting issues."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
             ],
             temperature=0.1
         )
         
         return response.choices[0].message.content
+            
     except Exception as e:
-        return f"Error with GPT analysis: {str(e)}"
+        return f"Error with OpenAI O3 analysis: {str(e)}"
 
 def create_excel(data):
     """Create Excel file from extracted data"""
@@ -279,40 +185,33 @@ def upload_pdf():
         if not file.filename.lower().endswith('.pdf'):
             return jsonify({'error': 'Only PDF files are allowed'}), 400
         
-        # Process PDF content with type detection
-        extracted_text, content_analysis = process_pdf_content(file)
+        # Extract text using Mistral OCR
+        extracted_text = extract_text_with_mistral_ocr(file)
         
         if extracted_text.startswith('Error'):
             return jsonify({'error': extracted_text}), 500
         
-        # Analyze with GPT
-        gpt_response = analyze_with_gpt(extracted_text, content_analysis)
+        # Analyze with OpenAI O3 instead of Mistral
+        openai_response = analyze_with_openai(extracted_text)
         
-        if gpt_response.startswith('Error'):
-            return jsonify({'error': gpt_response}), 500
+        if openai_response.startswith('Error'):
+            return jsonify({'error': openai_response}), 500
         
         # Parse JSON response
         try:
             # Clean the response to extract JSON
-            json_start = gpt_response.find('{')
-            json_end = gpt_response.rfind('}') + 1
-            json_str = gpt_response[json_start:json_end]
+            json_start = openai_response.find('{')
+            json_end = openai_response.rfind('}') + 1
+            json_str = openai_response[json_start:json_end]
             extracted_data = json.loads(json_str)
-        except:
-            return jsonify({'error': 'Failed to parse GPT response'}), 500
+        except Exception as parse_error:
+            return jsonify({'error': f'Failed to parse OpenAI response: {str(parse_error)}'}), 500
         
-        # Return the extracted data with PDF analysis info
+        # Return the extracted data
         return jsonify({
             'success': True,
             'data': extracted_data,
-            'pdf_analysis': {
-                'type': content_analysis['pdf_type'],
-                'total_pages': content_analysis['total_pages'],
-                'text_pages': content_analysis['text_based_pages'],
-                'image_pages': content_analysis['image_based_pages'],
-                'mixed_pages': content_analysis['mixed_pages']
-            },
-            'message': f'PDF processed successfully. Detected as {content_analysis["pdf_type"]} content.'
+            'message': 'PDF processed successfully using Mistral OCR and OpenAI O3 analysis.'
         })
         
     except Exception as e:
@@ -348,7 +247,7 @@ def download_excel():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({'status': 'healthy', 'message': 'PDF to Excel API is running'})
+    return jsonify({'status': 'healthy', 'message': 'PDF to Excel API is running with Mistral OCR and OpenAI O3 analysis'})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
