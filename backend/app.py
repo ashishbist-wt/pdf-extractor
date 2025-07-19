@@ -72,27 +72,6 @@ def extract_text_with_mistral_ocr(pdf_file):
             # Return the full response for debugging if structure is different
             extracted_text = f"OCR Response received but structure unknown: {str(ocr_response)}"
         
-        # Save extracted text to file
-        if extracted_text and not extracted_text.startswith("Error") and not extracted_text.startswith("OCR Response received but structure unknown"):
-            try:
-                # Create extracted_texts directory if it doesn't exist
-                os.makedirs('extracted_texts', exist_ok=True)
-                
-                # Generate filename with timestamp
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f'extracted_texts/ocr_text_{timestamp}.txt'
-                
-                # Save the extracted text to file
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(f"Extracted Text from PDF - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write("=" * 50 + "\n\n")
-                    f.write(extracted_text)
-                
-                print(f"Extracted text saved to: {filename}")
-                
-            except Exception as save_error:
-                print(f"Warning: Failed to save extracted text to file: {str(save_error)}")
-                # Continue execution even if file saving fails
         
         return extracted_text
             
@@ -207,10 +186,11 @@ def upload_pdf():
         except Exception as parse_error:
             return jsonify({'error': f'Failed to parse OpenAI response: {str(parse_error)}'}), 500
         
-        # Return the extracted data
+        # Return the extracted data along with raw OCR text
         return jsonify({
             'success': True,
             'data': extracted_data,
+            'ocr_text': extracted_text,
             'message': 'PDF processed successfully using Mistral OCR and OpenAI O3 analysis.'
         })
         

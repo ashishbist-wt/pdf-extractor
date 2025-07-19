@@ -22,13 +22,61 @@ body {
   padding: 20px;
 }
 
-.container {
+.main-container {
+  display: flex;
+  gap: 20px;
+  max-width: 1400px;
+  width: 100%;
+  height: 90vh;
+}
+
+.left-column {
+  flex: 1;
+  min-width: 500px;
+}
+
+.right-column {
+  flex: 1;
+  min-width: 500px;
+}
+
+.converter-container {
   background: white;
   border-radius: 20px;
   padding: 40px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  max-width: 800px;
-  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.text-display-container {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.text-display-area {
+  flex: 1;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 20px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.text-display-area pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  color: #333;
 }
 
 h1 {
@@ -37,6 +85,22 @@ h1 {
   margin-bottom: 10px;
   font-size: 2.5rem;
   font-weight: 700;
+}
+
+.text-display-container h2 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 0;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.text-display-subtitle {
+  text-align: center;
+  color: #666;
+  margin-bottom: 0;
+  font-size: 0.9rem;
+  font-style: italic;
 }
 
 .subtitle {
@@ -188,14 +252,36 @@ h1 {
   box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
 }
 
+@media (max-width: 1200px) {
+  .main-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .left-column,
+  .right-column {
+    min-width: auto;
+  }
+  
+  .converter-container,
+  .text-display-container {
+    height: auto;
+  }
+}
+
 @media (max-width: 768px) {
-  .container {
+  .converter-container,
+  .text-display-container {
     padding: 20px;
     margin: 10px;
   }
   
   h1 {
     font-size: 2rem;
+  }
+  
+  .text-display-container h2 {
+    font-size: 1.5rem;
   }
   
   .data-item {
