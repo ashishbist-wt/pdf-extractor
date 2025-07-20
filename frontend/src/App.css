@@ -65,18 +65,213 @@ body {
   border: 1px solid #dee2e6;
   border-radius: 10px;
   padding: 20px;
-  margin-top: 20px;
+  margin-top: 10px;
   overflow-y: auto;
+  overflow-x: hidden;
   font-family: 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.5;
+  max-height: calc(100vh - 300px);
+  word-wrap: break-word;
+}
+
+/* Tab Navigation Styles */
+.tab-navigation {
+  display: flex;
+  margin-top: 20px;
+  border-bottom: 2px solid #f8f9fa;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  flex: 1;
+}
+
+.tab-button:hover {
+  color: #667eea;
+  background: #f8f9fa;
+}
+
+.tab-button.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: #f8f9fa;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Formatted HTML Content Styles */
+.formatted-html-content {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  line-height: 1.6;
+  color: #333;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.formatted-html-content p {
+  margin: 0 0 16px 0;
+  text-align: justify;
+}
+
+.formatted-html-content p:last-child {
+  margin-bottom: 0;
+}
+
+.formatted-html-content br {
+  line-height: 1.8;
+}
+
+/* Markdown converted elements */
+.formatted-html-content h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #333;
+  margin: 24px 0 16px 0;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 8px;
+}
+
+.formatted-html-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin: 20px 0 12px 0;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 6px;
+}
+
+.formatted-html-content h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #333;
+  margin: 16px 0 10px 0;
+}
+
+.formatted-html-content strong {
+  font-weight: 700;
+  color: #333;
+}
+
+.formatted-html-content em {
+  font-style: italic;
+  color: #555;
+}
+
+.formatted-html-content code {
+  background: #f1f3f4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+}
+
+.formatted-html-content pre {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.formatted-html-content pre code {
+  background: none;
+  padding: 0;
+  color: #333;
+  font-size: 0.9em;
+}
+
+.formatted-html-content ul {
+  margin: 16px 0;
+  padding-left: 24px;
+}
+
+.formatted-html-content li {
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.formatted-html-content a {
+  color: #667eea;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.formatted-html-content a:hover {
+  color: #5a6fd8;
+  border-bottom-color: #5a6fd8;
+}
+
+.formatted-html-content img {
+  display: block;
+  margin: 16px auto;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease;
+}
+
+.formatted-html-content img:hover {
+  transform: scale(1.02);
+}
+
+/* Legacy Formatted Data Styles (kept for backward compatibility) */
+.formatted-data {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.formatted-item {
+  display: flex;
+  padding: 12px 16px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.formatted-label {
+  font-weight: 600;
+  color: #495057;
+  min-width: 150px;
+  margin-right: 16px;
+}
+
+.formatted-value {
+  color: #212529;
+  word-break: break-word;
+  flex: 1;
 }
 
 .text-display-area pre {
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
   margin: 0;
   color: #333;
+  max-width: 100%;
 }
 
 h1 {
@@ -291,5 +486,20 @@ h1 {
   
   .file-label {
     min-width: 250px;
+  }
+  
+  .tab-button {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+  
+  .formatted-item {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .formatted-label {
+    min-width: auto;
+    margin-right: 0;
   }
 }
